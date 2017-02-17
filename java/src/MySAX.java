@@ -39,6 +39,7 @@ public class MySAX extends DefaultHandler {
     private Item item;
     private ItemCategory itemCategory;
     private ItemBuyPrice itemBuyPrice;
+    private User user;
     private Bid bid;
     private Bidder bidder;
     private BidderLocation bidderLocation;
@@ -50,6 +51,7 @@ public class MySAX extends DefaultHandler {
     private PrintWriter itemWriter;
     private PrintWriter itemCategoryWriter;
     private PrintWriter itemBuyPriceWriter;
+    private PrintWriter userWriter;
     private PrintWriter bidWriter;
     private PrintWriter bidderWriter;
     private PrintWriter bidderLocationWriter;
@@ -64,6 +66,7 @@ public class MySAX extends DefaultHandler {
     private HashSet<String> itemPKs = new HashSet<String>();
     private HashSet<String> itemCategoryPKs = new HashSet<String>();
     private HashSet<String> itemBuyPricePKs = new HashSet<String>();
+    private HashSet<String> userPKs = new HashSet<String>();
     private HashSet<String> bidPKs = new HashSet<String>();
     private HashSet<String> bidderPKs = new HashSet<String>();
     private HashSet<String> bidderLocationPKs = new HashSet<String>();
@@ -140,6 +143,7 @@ public class MySAX extends DefaultHandler {
             itemWriter = new PrintWriter("item.csv");
             itemCategoryWriter = new PrintWriter("itemCategory.csv");
             itemBuyPriceWriter = new PrintWriter("itemBuyPrice.csv");
+            userWriter = new PrintWriter("user.csv");
             bidWriter = new PrintWriter("bid.csv");
             bidderWriter = new PrintWriter("bidder.csv");
             bidderLocationWriter = new PrintWriter("bidderLocation.csv");
@@ -165,6 +169,7 @@ public class MySAX extends DefaultHandler {
         itemWriter.flush();
         itemCategoryWriter.flush();
         itemBuyPriceWriter.flush();
+        userWriter.flush();
         bidWriter.flush();
         bidderWriter.flush();
         bidderLocationWriter.flush();
@@ -194,8 +199,10 @@ public class MySAX extends DefaultHandler {
                 bid.ItemID = item.ItemID;
                 break;
             case Bidder:
+                user = new User();
+                user.UserID = atts.getValue("UserID");
                 bidder = new Bidder();
-                bidder.BidderID = atts.getValue("UserID");
+                bidder.BidderID = user.UserID;
                 bidder.Rating = atts.getValue("Rating");
                 bid.BidderID = bidder.BidderID;
                 break;
@@ -229,8 +236,10 @@ public class MySAX extends DefaultHandler {
                 }
                 break;
             case Seller:
+                user = new User();
+                user.UserID = atts.getValue("UserID");
                 seller = new Seller();
-                seller.SellerID = atts.getValue("UserID");
+                seller.SellerID = user.UserID;
                 seller.Rating = atts.getValue("Rating");
                 item.SellerID = seller.SellerID;
                 break;
@@ -249,7 +258,7 @@ public class MySAX extends DefaultHandler {
                     itemPKs.add(item.getPK());
                     itemWriter.println(item);
                 } else {
-                    throw new RuntimeException("Duplicated Item");
+                    throw new RuntimeException("Duplicated Item: " + item.getPK());
                 }
                 item = null;
                 if (itemCoords != null) {
@@ -257,19 +266,15 @@ public class MySAX extends DefaultHandler {
                     if (!itemCoordsPKs.contains(itemCoords.getPK())) {
                         itemCoordsPKs.add(itemCoords.getPK());
                         itemCoordsWriter.println(itemCoords);
-                    } else {
-                        throw new RuntimeException("Duplicated ItemCoords for same Item");
                     }
                     itemCoords = null;
                 }
                 break;
             case Category:
-                // Write itemCategory
+                // Write itemCategory, skip duplicates
                 if (!itemCategoryPKs.contains(itemCategory.getPK())) {
                     itemCategoryPKs.add(itemCategory.getPK());
                     itemCategoryWriter.println(itemCategory);
-                } else {
-                    throw new RuntimeException("Duplicated Category for same Item");
                 }
                 itemCategory = null;
                 break;
@@ -279,7 +284,7 @@ public class MySAX extends DefaultHandler {
                     itemBuyPricePKs.add(itemBuyPrice.getPK());
                     itemBuyPriceWriter.println(itemBuyPrice);
                 } else {
-                    throw new RuntimeException("Duplicated Buy_Price for same Item");
+                    throw new RuntimeException("Duplicated Buy_Price for same Item: " + itemBuyPrice.getPK());
                 }
                 itemBuyPrice = null;
                 break;
@@ -289,11 +294,17 @@ public class MySAX extends DefaultHandler {
                     bidPKs.add(bid.getPK());
                     bidWriter.println(bid);
                 } else {
-                    throw new RuntimeException("Duplicated Bid for same Bidder, Item, and Time");
+                    throw new RuntimeException("Duplicated Bid for same Bidder, Item, and Time: " + bid.getPK());
                 }
                 bid = null;
                 break;
             case Bidder:
+                // Write user, skip duplicates
+                if (!userPKs.contains(user.getPK())) {
+                    userPKs.add(user.getPK());
+                    userWriter.println(user);
+                }
+                user = null;
                 // Write bidder, skip duplicates
                 if (!bidderPKs.contains(bidder.getPK())) {
                     bidderPKs.add(bidder.getPK());
@@ -322,6 +333,12 @@ public class MySAX extends DefaultHandler {
                 }
                 break;
             case Seller:
+                // Write user, skip duplicates
+                if (!userPKs.contains(user.getPK())) {
+                    userPKs.add(user.getPK());
+                    userWriter.println(user);
+                }
+                user = null;
                 // Write seller, skip duplicates
                 if (!sellerPKs.contains(seller.getPK())) {
                     sellerPKs.add(seller.getPK());
@@ -408,7 +425,7 @@ public class MySAX extends DefaultHandler {
         private String Ends = "";
         private String SellerID;
         private String Description = "";
-        private String Country;
+        private String Country = "";
 
         private String getPK() {
             return ItemID;
@@ -437,7 +454,7 @@ public class MySAX extends DefaultHandler {
         private String Category = "";
 
         private String getPK() {
-            return ItemID + Category;
+            return ItemID + "\t" + Category;
         }
 
         @Override
@@ -469,7 +486,7 @@ public class MySAX extends DefaultHandler {
         private String Amount = "";
 
         private String getPK() {
-            return BidderID + ItemID + Time;
+            return BidderID + "\t" + ItemID + "\t" + Time;
         }
 
         @Override
@@ -479,6 +496,20 @@ public class MySAX extends DefaultHandler {
                     + '\t' + ItemID
                     + '\t' + format(Time)
                     + '\t' + strip(Amount);
+        }
+    }
+
+    private static class User {
+        private String UserID;
+
+        private String getPK() {
+            return UserID;
+        }
+
+        @Override
+        public String toString() {
+            requireNonNull(UserID);
+            return UserID;
         }
     }
 
